@@ -1,0 +1,27 @@
+<configuration name="gmeet-rtc.conf" description="GMeet RTC Endpoint">
+
+    <settings>
+        <param name="debug" value="0"/>
+    </settings>
+
+    <profiles>
+        <profile name="default">
+            <!-- setting this to true will allow anyone to register even with no account so use with care -->
+            <param name="blind-reg" value="true"/>
+            <param name="rtp-ip" value="$${local_ip_v4}"/>
+            <!-- <param name="ext-rtp-ip" value="192.168.3.80"/> -->
+            <param name="local-network" value="loopback.auto"/>
+            <!-- <param name="local-network" value="localnet.auto"/> -->
+            <param name="outbound-codec-string" value="opus,PCMU,h264"/>
+            <param name="inbound-codec-string" value="opus,PCMU,h264"/>
+            <param name="apply-candidate-acl" value="loopback.auto"/>
+            <param name="apply-candidate-acl" value="localnet.auto"/>
+            <param name="apply-candidate-acl" value="wan_v4.auto"/>
+            <param name="apply-candidate-acl" value="rfc1918.auto"/>
+            <param name="apply-candidate-acl" value="any_v4.auto"/>
+            <param name="timer-name" value="soft"/>
+            <param name="gmeet-ctrl-subject" value="rtc"/>
+            <param name="media-timeout" value="30000"/>
+        </profile>
+    </profiles>
+</configuration>

@@ -23,7 +23,7 @@
     <ProjectGuid>{202D7A4E-760D-4D0E-AFA1-D7459CED30FF}</ProjectGuid>
     <RootNamespace>FreeSwitchCoreLib</RootNamespace>
     <Keyword>Win32Proj</Keyword>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -360,6 +360,7 @@ if not exist "$(OutDir)fonts" xcopy "$(SolutionDir)fonts\*.*" "$(OutDir)fonts\" 
     <ClCompile Include="..\..\src\switch_estimators.c" />
     <ClCompile Include="..\..\src\switch_event.c" />
     <ClCompile Include="..\..\src\switch_hashtable.c" />
+    <ClCompile Include="..\..\src\switch_http.c" />
     <ClCompile Include="..\..\src\switch_ivr.c" />
     <ClCompile Include="..\..\src\switch_ivr_async.c" />
     <ClCompile Include="..\..\src\switch_ivr_bridge.c" />
@@ -728,6 +729,7 @@ if not exist "$(OutDir)fonts" xcopy "$(SolutionDir)fonts\*.*" "$(OutDir)fonts\" 
     <ClInclude Include="..\..\src\include\switch_event.h" />
     <ClInclude Include="..\..\src\include\switch_frame.h" />
     <ClInclude Include="..\..\src\include\switch_hashtable.h" />
+    <ClInclude Include="..\..\src\include\switch_http.h" />
     <ClInclude Include="..\..\src\include\switch_ivr.h" />
     <ClInclude Include="..\..\src\include\switch_cJSON.h" />
     <ClInclude Include="..\..\src\include\switch_cJSON_Utils.h" />

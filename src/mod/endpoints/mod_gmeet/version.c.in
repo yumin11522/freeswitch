@@ -1,0 +1,1 @@
+char *gmeet_version(){return "N/A";}

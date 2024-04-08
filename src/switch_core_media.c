@@ -2191,7 +2191,24 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_media_handle_ready(switch_co
 	return SWITCH_STATUS_FALSE;
 }
 
+SWITCH_DECLARE(uint8_t) switch_core_session_get_rtp_pt(switch_core_session_t *session, switch_media_type_t type)
+{
+	switch_rtp_engine_t *engine = &session->media_handle->engines[type];
 
+	if (!engine) return 0;
+
+	return engine->cur_payload_map->pt;
+}
+
+SWITCH_DECLARE(switch_rtp_t *)
+switch_core_session_get_rtp_session(switch_core_session_t *session, switch_media_type_t type)
+{
+	switch_rtp_engine_t *engine = &session->media_handle->engines[type];
+
+	if (!engine) return NULL;
+
+	return engine->rtp_session;
+}
 
 SWITCH_DECLARE(switch_media_handle_t *) switch_core_session_get_media_handle(switch_core_session_t *session)
 {
@@ -4297,7 +4314,9 @@ static switch_status_t check_ice(switch_media_handle_t *smh, switch_media_type_t
 	}
 
  done_choosing:
-
+	 if (switch_channel_test_flag(smh->session->channel, CF_AUDIO_VIDEO_BUNDLE)) { 
+		 engine->ice_in.is_chosen[0] = 1; 
+	 }
 	if (!engine->ice_in.is_chosen[0]) {
 		if (!relay_ok) {
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(smh->session), SWITCH_LOG_DEBUG, "Look for Relay Candidates as last resort\n");
@@ -8392,6 +8411,19 @@ static void gen_ice(switch_core_session_t *session, switch_media_type_t type, co
 		switch_stun_random_string(tmp, 16, NULL);
 		tmp[16] = '\0';
 		smh->cname = switch_core_session_strdup(session, tmp);
+	}
+
+	if (type == SWITCH_MEDIA_TYPE_VIDEO &&
+		switch_channel_var_true(switch_core_session_get_channel(session), "video_use_audio_ice")) {
+		switch_rtp_engine_t *audio_engine = &smh->engines[SWITCH_MEDIA_TYPE_AUDIO];
+
+		if (audio_engine->ice_out.ufrag) {
+			engine->ice_out.ufrag = switch_core_session_strdup(session, audio_engine->ice_out.ufrag);
+		}
+
+		if (audio_engine->ice_out.pwd) {
+			engine->ice_out.pwd = switch_core_session_strdup(session, audio_engine->ice_out.pwd);
+		}
 	}
 
 	if (!engine->ice_out.ufrag) {
