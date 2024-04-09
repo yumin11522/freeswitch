@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>mod_gmeet</ProjectName>
+    <ProjectName>mod_xmpp</ProjectName>
     <ProjectGuid>{A93989F3-D3B0-406F-B48D-20AF92C0BFC1}</ProjectGuid>
     <RootNamespace>mod_h323</RootNamespace>
     <Keyword>Win32Proj</Keyword>
@@ -140,38 +140,38 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="gmeet\xmppclient.cpp" />
-    <ClCompile Include="gmeet\xmppclientmgr.cpp" />
-    <ClCompile Include="gmeet\jinglebridgesession.cpp" />
-    <ClCompile Include="gmeet\jingledescription.cpp" />
-    <ClCompile Include="gmeet\jinglegroup.cpp" />
-    <ClCompile Include="gmeet\jinglepresence.cpp" />
-    <ClCompile Include="gmeet\jingletransport.cpp" />
-    <ClCompile Include="gmeet\logger.cpp" />
-    <ClCompile Include="gmeet\sdputil.cpp" />
-    <ClCompile Include="gmeet\xmppconnection.cpp" />
-    <ClCompile Include="xmpp_client.cpp" />
-    <ClCompile Include="xmpp_rtc.c" />
-    <ClCompile Include="mod_xmpp.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="xmpp_client.h" />
-    <ClInclude Include="gmeet\xmppclient.h" />
-    <ClInclude Include="gmeet\xmppclientmgr.h" />
-    <ClInclude Include="gmeet\jinglebridgesession.h" />
-    <ClInclude Include="gmeet\jingledescription.h" />
-    <ClInclude Include="gmeet\jinglegroup.h" />
-    <ClInclude Include="gmeet\jinglepresence.h" />
-    <ClInclude Include="gmeet\jingletransport.h" />
-    <ClInclude Include="gmeet\logger.h" />
-    <ClInclude Include="gmeet\sdputil.h" />
-    <ClInclude Include="gmeet\xmppconnection.h" />
-    <ClInclude Include="mod_xmpp.h" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\..\..\w32\Library\FreeSwitchCore.2017.vcxproj">
       <Project>{202d7a4e-760d-4d0e-afa1-d7459ced30ff}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="mod_xmpp.c" />
+    <ClCompile Include="xmpp\jinglebridgesession.cpp" />
+    <ClCompile Include="xmpp\jingledescription.cpp" />
+    <ClCompile Include="xmpp\jinglegroup.cpp" />
+    <ClCompile Include="xmpp\jinglepresence.cpp" />
+    <ClCompile Include="xmpp\jingletransport.cpp" />
+    <ClCompile Include="xmpp\logger.cpp" />
+    <ClCompile Include="xmpp\sdputil.cpp" />
+    <ClCompile Include="xmpp\xmppclient.cpp" />
+    <ClCompile Include="xmpp\xmppclientmgr.cpp" />
+    <ClCompile Include="xmpp\xmppconnection.cpp" />
+    <ClCompile Include="xmpp_client.cpp" />
+    <ClCompile Include="xmpp_rtc.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="mod_xmpp.h" />
+    <ClInclude Include="xmpp\jinglebridgesession.h" />
+    <ClInclude Include="xmpp\jingledescription.h" />
+    <ClInclude Include="xmpp\jinglegroup.h" />
+    <ClInclude Include="xmpp\jinglepresence.h" />
+    <ClInclude Include="xmpp\jingletransport.h" />
+    <ClInclude Include="xmpp\logger.h" />
+    <ClInclude Include="xmpp\sdputil.h" />
+    <ClInclude Include="xmpp\xmppclient.h" />
+    <ClInclude Include="xmpp\xmppclientmgr.h" />
+    <ClInclude Include="xmpp\xmppconnection.h" />
+    <ClInclude Include="xmpp_client.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

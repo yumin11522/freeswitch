@@ -10,7 +10,7 @@
 #include <cstdlib>	// std::abort()
 #include <cstring>
 
-namespace gmeetclient
+namespace xmppclient
 {
 class Log
 {
@@ -41,13 +41,13 @@ class Log
 	static const size_t bufferSize{50000};
 	static char buffer[];
 };
-}  // namespace gmeetclient
+}  // namespace xmppclient
 
 // clang-format off
 
 /* Logging macros. */
 
-using Logger = gmeetclient::Log;
+using Logger = xmppclient::Log;
 
 #define _GMTC_SEPARATOR_CHAR "\n"
 
@@ -66,10 +66,10 @@ using Logger = gmeetclient::Log;
 #define GMTC_TRACE() \
         do \
         { \
-            if (gmeetclient::Log::handler && gmeetclient::Log::logLevel == gmeetclient::Log::LLevel::LOG_DEBUG) \
+            if (xmppclient::Log::handler && xmppclient::Log::logLevel == xmppclient::Log::LLevel::LOG_DEBUG) \
             { \
-                int loggerWritten = std::snprintf(gmeetclient::Log::buffer, gmeetclient::Log::bufferSize, _GMTC_STR, _GMTC_ARG); \
-                gmeetclient::Log::handler->OnLog(gmeetclient::Log::LLevel::LOG_TRACE, gmeetclient::Log::buffer, loggerWritten); \
+                int loggerWritten = std::snprintf(xmppclient::Log::buffer, xmppclient::Log::bufferSize, _GMTC_STR, _GMTC_ARG); \
+                xmppclient::Log::handler->OnLog(xmppclient::Log::LLevel::LOG_TRACE, xmppclient::Log::buffer, loggerWritten); \
             } \
         } \
         while (false)
@@ -80,10 +80,10 @@ using Logger = gmeetclient::Log;
 #define GMTC_DEBUG(desc, ...) \
     do \
     { \
-        if (gmeetclient::Log::handler && gmeetclient::Log::logLevel == gmeetclient::Log::LLevel::LOG_DEBUG) \
+        if (xmppclient::Log::handler && xmppclient::Log::logLevel == xmppclient::Log::LLevel::LOG_DEBUG) \
         { \
             int loggerWritten = std::snprintf(Log::buffer, Log::bufferSize, _GMTC_STR_DESC desc, _GMTC_ARG, ##__VA_ARGS__); \
-            gmeetclient::Log::handler->OnLog(gmeetclient::Log::LLevel::LOG_DEBUG, gmeetclient::Log::buffer, loggerWritten); \
+            xmppclient::Log::handler->OnLog(xmppclient::Log::LLevel::LOG_DEBUG, xmppclient::Log::buffer, loggerWritten); \
         } \
     } \
     while (false)
@@ -91,10 +91,10 @@ using Logger = gmeetclient::Log;
 #define GMTC_WARN(desc, ...) \
     do \
     { \
-        if (gmeetclient::Log::handler && gmeetclient::Log::logLevel >= gmeetclient::Log::LLevel::LOG_WARN) \
+        if (xmppclient::Log::handler && xmppclient::Log::logLevel >= xmppclient::Log::LLevel::LOG_WARN) \
         { \
-            int loggerWritten = std::snprintf(gmeetclient::Log::buffer, gmeetclient::Log::bufferSize, _GMTC_STR_DESC desc, _GMTC_ARG, ##__VA_ARGS__); \
-            gmeetclient::Log::handler->OnLog(gmeetclient::Log::LLevel::LOG_WARN, gmeetclient::Log::buffer, loggerWritten); \
+            int loggerWritten = std::snprintf(xmppclient::Log::buffer, xmppclient::Log::bufferSize, _GMTC_STR_DESC desc, _GMTC_ARG, ##__VA_ARGS__); \
+            xmppclient::Log::handler->OnLog(xmppclient::Log::LLevel::LOG_WARN, xmppclient::Log::buffer, loggerWritten); \
         } \
     } \
     while (false)
@@ -102,10 +102,10 @@ using Logger = gmeetclient::Log;
 #define GMTC_ERROR(desc, ...) \
     do \
     { \
-        if (gmeetclient::Log::handler && gmeetclient::Log::logLevel >= gmeetclient::Log::LLevel::LOG_ERROR) \
+        if (xmppclient::Log::handler && xmppclient::Log::logLevel >= xmppclient::Log::LLevel::LOG_ERROR) \
         { \
-            int loggerWritten = std::snprintf(gmeetclient::Log::buffer, gmeetclient::Log::bufferSize, _GMTC_STR_DESC desc, _GMTC_ARG, ##__VA_ARGS__); \
-            gmeetclient::Log::handler->OnLog(gmeetclient::Log::LLevel::LOG_ERROR, gmeetclient::Log::buffer, loggerWritten); \
+            int loggerWritten = std::snprintf(xmppclient::Log::buffer, xmppclient::Log::bufferSize, _GMTC_STR_DESC desc, _GMTC_ARG, ##__VA_ARGS__); \
+            xmppclient::Log::handler->OnLog(xmppclient::Log::LLevel::LOG_ERROR, xmppclient::Log::buffer, loggerWritten); \
         } \
     } \
     while (false)

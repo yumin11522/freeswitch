@@ -2,8 +2,8 @@
 // Created by xiongqimin on 2023/12/19.
 //
 
-#ifndef GMEET_CLIENT_GMEETCLIENT_API_H
-#define GMEET_CLIENT_GMEETCLIENT_API_H
+#ifndef XMPP_CLIENT_XMPPCLIENT_API_H
+#define XMPP_CLIENT_XMPPCLIENT_API_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,26 +39,26 @@ extern "C" {
 #define GMT_ERR_NOT_AVAIL -3 // element not available
 #define GMT_ERR_TOO_SMALL -4 // buffer too small
 
-typedef void gmeet_client_t;
+typedef void xmpp_client_t;
 typedef void (*gmtcLogCallbackFunc)(int level, const char *message);
 
 void printVersion();
 
 /**
- * 加入 GMeet 会议
+ * 加入 xmpp 会议
  * @param room_id  会议室ID
  * @param room_secret  会议室密码
  * @return
  */
-gmeet_client_t *join_room(char *room_id, char *room_secret);
+xmpp_client_t *join_room(char *room_id, char *room_secret);
 
 
-int connect(gmeet_client_t* client);
-int exchange_sdp(gmeet_client_t *client, const char *sdp, char *answer, int size);
-int leave_room(gmeet_client_t* client);
+int connect(xmpp_client_t* client);
+int exchange_sdp(xmpp_client_t *client, const char *sdp, char *answer, int size);
+int leave_room(xmpp_client_t* client);
 
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif //GMEET_CLIENT_GMEETCLIENT_API_H
+#endif //XMPP_CLIENT_XMPPCLIENT_API_H

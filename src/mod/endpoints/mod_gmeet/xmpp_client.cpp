@@ -8,8 +8,8 @@
 #include <cstddef>
 #include <vector>
 
-#include "gmeet/gmeetclientmgr.h"
-#include "gmeetclient.h"
+#include "xmpp/xmppclientmgr.h"
+#include "xmpp_client.h"
 
 int copyAndReturn(std::string s, char *buffer, int size)
 {
@@ -44,37 +44,37 @@ template <typename T> int copyAndReturn(std::vector<T> b, T *buffer, int size)
 
 void printVersion() {}
 
-gmeet_client_t *join_room(char *room_id, char *room_secret)
+xmpp_client_t *join_room(char *room_id, char *room_secret)
 {
-	gmeetclient::GMeetClientMgr::setXmppSrvHost("10.8.106.128");
-	gmeetclient::GMeetClientMgr::setXmppSrvPort(6222);
-	//	gmeetclient::Logger::SetLogLevel(gmeetclient::Logger::LogLevel::LOG_DEBUG);
-	return (gmeet_client_t *)gmeetclient::GMeetClientMgr::Instance().addClient(room_id, room_secret).get();
+	xmppclient::XmppClientMgr::setXmppSrvHost("10.8.106.128");
+	xmppclient::XmppClientMgr::setXmppSrvPort(6222);
+	//	xmppclient::Logger::SetLogLevel(xmppclient::Logger::LogLevel::LOG_DEBUG);
+	return (xmpp_client_t *)xmppclient::XmppClientMgr::Instance().addClient(room_id, room_secret).get();
 }
 
-int doconnect(gmeet_client_t *client)
+int doconnect(xmpp_client_t *client)
 {
-	auto c = (gmeetclient::GMeetClient *)client;
+	auto c = (xmppclient::XmppClient *)client;
 	if (!c) {
 		return GMT_ERR_INVALID;
 	}
 	return c->doconnect();
 }
 
-int exchange_sdp(gmeet_client_t *client, const char *sdp, char *answer, int size)
+int exchange_sdp(xmpp_client_t *client, const char *sdp, char *answer, int size)
 {
-	auto c = (gmeetclient::GMeetClient *)client;
+	auto c = (xmppclient::XmppClient *)client;
 	if (!c) {
 		return false;
 	}
 	return copyAndReturn(c->onSdpExchange(sdp), answer, size);
 }
 
-int leave_room(gmeet_client_t *client)
+int leave_room(xmpp_client_t *client)
 {
-	auto c = (gmeetclient::GMeetClient *)client;
+	auto c = (xmppclient::XmppClient *)client;
 	if (!c) {
 		return GMT_ERR_INVALID;
 	}
-	return gmeetclient::GMeetClientMgr::Instance().removeClient(c->id());
+	return xmppclient::XmppClientMgr::Instance().removeClient(c->id());
 }

@@ -5,7 +5,7 @@
 #include "logger.h"
 #include <iostream>
 
-namespace gmeetclient {
+namespace xmppclient {
 /* Class variables. */
 
 Logger::LogHandlerInterface *Logger::handler{nullptr};

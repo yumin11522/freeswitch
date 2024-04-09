@@ -2,13 +2,13 @@
 #include <switch_http.h>
 #include <switch_stun.h>
 
-#include "mod_gmeet.h"
+#include "mod_xmpp.h"
 
-#define VERTO_CHAT_PROTO "gmeet"
+#define VERTO_CHAT_PROTO "xmpp"
 
 #define set_string(x, y) strncpy(x, y, sizeof(x) - 1)
 
-const char *modname = "mod_gmeet";
+const char *modname = "mod_xmpp";
 
 typedef enum { PTYPE_CLIENT = (1 << 0), PTYPE_CLIENT_SSL = (1 << 1) } jsock_type_t;
 
@@ -21,7 +21,7 @@ typedef enum {
 	JPFLAG_ALL_EVENTS_AUTHED = (1 << 5)
 } jpflag_t;
 
-struct gmeet_profile_s;
+struct xmpp_profile_s;
 
 struct jsock_s {
 	switch_memory_pool_t *pool;
@@ -43,7 +43,7 @@ struct jsock_s {
 	char *dialplan;
 	char *context;
 
-	struct gmeet_profile_s *profile;
+	struct xmpp_profile_s *profile;
 	switch_thread_rwlock_t *rwlock;
 
 	switch_mutex_t *write_mutex;
@@ -67,7 +67,7 @@ typedef struct ips {
 
 typedef enum { TFLAG_SENT_MEDIA = (1 << 0), TFLAG_ATTACH_REQ = (1 << 1), TFLAG_TRACKED = (1 << 2) } tflag_t;
 
-typedef struct gmeet_pvt_s {
+typedef struct xmpp_pvt_s {
 	switch_memory_pool_t *pool;
 	char *destination_number;
 	char *ctrl_uuid;
@@ -80,7 +80,7 @@ typedef struct gmeet_pvt_s {
 	switch_core_media_params_t *mparams;
 	switch_call_cause_t remote_hangup_cause;
 	time_t detach_time;
-	struct gmeet_pvt_s *next;
+	struct xmpp_pvt_s *next;
 	switch_byte_t text_read_frame_data[SWITCH_RTP_MAX_BUF_LEN];
 	switch_frame_t text_read_frame;
 
@@ -91,9 +91,9 @@ typedef struct gmeet_pvt_s {
 	int got_bye;
 
 	char *url;
-} gmeet_pvt_t;
+} xmpp_pvt_t;
 
-struct gmeet_profile_s {
+struct xmpp_profile_s {
 	char *name;
 	switch_mutex_t *mutex;
 	switch_memory_pool_t *pool;
@@ -151,18 +151,18 @@ struct gmeet_profile_s {
 	int enable_text;
 	char *media_timeout;
 
-	char *gmeet_ctrl_subject;
-	struct gmeet_profile_s *next;
+	char *xmpp_ctrl_subject;
+	struct xmpp_profile_s *next;
 };
 
-typedef struct gmeet_profile_s gmeet_profile_t;
+typedef struct xmpp_profile_s xmpp_profile_t;
 
 struct rtc_globals_s {
 	switch_mutex_t *mutex;
 	switch_memory_pool_t *pool;
 
 	int profile_count;
-	gmeet_profile_t *profile_head;
+	xmpp_profile_t *profile_head;
 	int sig;
 	int running;
 
@@ -174,7 +174,7 @@ struct rtc_globals_s {
 	int profile_threads;
 	int enable_presence;
 
-	gmeet_pvt_t *tech_head;
+	xmpp_pvt_t *tech_head;
 	switch_thread_rwlock_t *tech_rwlock;
 
 	switch_thread_cond_t *detach_cond;
@@ -187,11 +187,11 @@ struct rtc_globals_s {
 	switch_event_channel_id_t event_channel_id;
 };
 
-#define ENDPOINT_NAME "gmeet"
+#define ENDPOINT_NAME "xmpp"
 
-static struct rtc_globals_s gmeet_globals;
+static struct rtc_globals_s xmpp_globals;
 
-static gmeet_profile_t *find_profile(const char *name);
+static xmpp_profile_t *find_profile(const char *name);
 
 typedef struct jsock_sub_node_s {
 	jsock_t *jsock;
@@ -227,7 +227,7 @@ static uint32_t jsock_unsub_head(jsock_t *jsock, jsock_sub_node_head_t *head)
 				head->node = np;
 			}
 
-			if (thisnp->jsock->profile->debug || gmeet_globals.debug) {
+			if (thisnp->jsock->profile->debug || xmpp_globals.debug) {
 				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ALERT, "UNSUBBING %s [%s]\n", thisnp->jsock->name,
 								  thisnp->head->event_channel);
 			}
@@ -251,22 +251,22 @@ static void unsub_all_jsock(void)
 	void *val;
 	jsock_sub_node_head_t *head;
 
-	switch_thread_rwlock_wrlock(gmeet_globals.event_channel_rwlock);
+	switch_thread_rwlock_wrlock(xmpp_globals.event_channel_rwlock);
 top:
 	head = NULL;
 
-	for (hi = switch_core_hash_first(gmeet_globals.event_channel_hash); hi;) {
+	for (hi = switch_core_hash_first(xmpp_globals.event_channel_hash); hi;) {
 		switch_core_hash_this(hi, NULL, NULL, &val);
 		head = (jsock_sub_node_head_t *)val;
 		jsock_unsub_head(NULL, head);
-		switch_core_hash_delete(gmeet_globals.event_channel_hash, head->event_channel);
+		switch_core_hash_delete(xmpp_globals.event_channel_hash, head->event_channel);
 		free(head->event_channel);
 		free(head);
 		switch_safe_free(hi);
 		goto top;
 	}
 
-	switch_thread_rwlock_unlock(gmeet_globals.event_channel_rwlock);
+	switch_thread_rwlock_unlock(xmpp_globals.event_channel_rwlock);
 }
 
 static uint32_t ID = 1;
@@ -275,9 +275,9 @@ static uint32_t next_id(void)
 {
 	uint32_t id;
 
-	switch_mutex_lock(gmeet_globals.mutex);
+	switch_mutex_lock(xmpp_globals.mutex);
 	id = ID++;
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_unlock(xmpp_globals.mutex);
 
 	return id;
 }
@@ -345,19 +345,19 @@ jsock_t *jsock_new(switch_memory_pool_t *pool, const char *profile_name)
 	return jsock;
 }
 
-static switch_status_t gmeet_publish_event(gmeet_pvt_t *tech_pvt, cJSON **obj)
+static switch_status_t xmpp_publish_event(xmpp_pvt_t *tech_pvt, cJSON **obj)
 {
 	*obj = NULL;
 	return SWITCH_STATUS_SUCCESS;
 }
 
-static void set_call_params(cJSON *params, gmeet_pvt_t *tech_pvt)
+static void set_call_params(cJSON *params, xmpp_pvt_t *tech_pvt)
 {
 	const char *caller_id_name = NULL;
 	const char *caller_id_number = NULL;
 	const char *callee_id_name = NULL;
 	const char *callee_id_number = NULL;
-	const char *prefix = "gmeet_h_";
+	const char *prefix = "xmpp_h_";
 	switch_event_header_t *var = NULL;
 
 	caller_id_name = switch_channel_get_variable(tech_pvt->channel, "caller_id_name");
@@ -393,15 +393,15 @@ static int attach_wake(void)
 
 top:
 
-	status = switch_mutex_trylock(gmeet_globals.detach_mutex);
+	status = switch_mutex_trylock(xmpp_globals.detach_mutex);
 
 	if (status == SWITCH_STATUS_SUCCESS) {
-		switch_thread_cond_signal(gmeet_globals.detach_cond);
-		switch_mutex_unlock(gmeet_globals.detach_mutex);
+		switch_thread_cond_signal(xmpp_globals.detach_cond);
+		switch_mutex_unlock(xmpp_globals.detach_mutex);
 		return 1;
 	} else {
-		if (switch_mutex_trylock(gmeet_globals.detach2_mutex) == SWITCH_STATUS_SUCCESS) {
-			switch_mutex_unlock(gmeet_globals.detach2_mutex);
+		if (switch_mutex_trylock(xmpp_globals.detach2_mutex) == SWITCH_STATUS_SUCCESS) {
+			switch_mutex_unlock(xmpp_globals.detach2_mutex);
 		} else {
 			if (++tries < 10) {
 				switch_cond_next();
@@ -413,16 +413,16 @@ top:
 	return 0;
 }
 
-static void tech_reattach(gmeet_pvt_t *tech_pvt, jsock_t *jsock)
+static void tech_reattach(xmpp_pvt_t *tech_pvt, jsock_t *jsock)
 {
 	cJSON *params = NULL;
 	cJSON *msg = NULL;
 
 	tech_pvt->detach_time = 0;
-	gmeet_globals.detached--;
+	xmpp_globals.detached--;
 	attach_wake();
 	switch_set_flag(tech_pvt, TFLAG_ATTACH_REQ);
-	msg = jrpc_new_req("gmeet.attach", tech_pvt->call_id, &params);
+	msg = jrpc_new_req("xmpp.attach", tech_pvt->call_id, &params);
 
 	switch_channel_set_flag(tech_pvt->channel, CF_REINVITE);
 	switch_channel_set_flag(tech_pvt->channel, CF_RECOVERING);
@@ -435,18 +435,18 @@ static void tech_reattach(gmeet_pvt_t *tech_pvt, jsock_t *jsock)
 	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(tech_pvt->session), SWITCH_LOG_DEBUG, "Local attach SDP %s:\n%s\n",
 					  switch_channel_get_name(tech_pvt->channel), tech_pvt->mparams->local_sdp_str);
 	set_call_params(params, tech_pvt);
-	if (gmeet_publish_event(tech_pvt, &msg) != SWITCH_STATUS_SUCCESS) {
+	if (xmpp_publish_event(tech_pvt, &msg) != SWITCH_STATUS_SUCCESS) {
 		switch_channel_hangup(tech_pvt->channel, SWITCH_CAUSE_DESTINATION_OUT_OF_ORDER);
 	}
 }
 
 static void detach_calls(jsock_t *jsock)
 {
-	gmeet_pvt_t *tech_pvt;
+	xmpp_pvt_t *tech_pvt;
 	int wake = 0;
 
-	switch_thread_rwlock_rdlock(gmeet_globals.tech_rwlock);
-	for (tech_pvt = gmeet_globals.tech_head; tech_pvt; tech_pvt = tech_pvt->next) {
+	switch_thread_rwlock_rdlock(xmpp_globals.tech_rwlock);
+	for (tech_pvt = xmpp_globals.tech_head; tech_pvt; tech_pvt = tech_pvt->next) {
 		if (!strcmp(tech_pvt->jsock->uuid_str, jsock->uuid_str)) {
 			if (!switch_channel_up_nosig(tech_pvt->channel)) {
 				continue;
@@ -464,45 +464,45 @@ static void detach_calls(jsock_t *jsock)
 
 			switch_core_session_stop_media(tech_pvt->session);
 			tech_pvt->detach_time = switch_epoch_time_now(NULL);
-			gmeet_globals.detached++;
+			xmpp_globals.detached++;
 			wake = 1;
 		}
 	}
-	switch_thread_rwlock_unlock(gmeet_globals.tech_rwlock);
+	switch_thread_rwlock_unlock(xmpp_globals.tech_rwlock);
 
 	if (wake) attach_wake();
 }
 
-static void track_pvt(gmeet_pvt_t *tech_pvt)
+static void track_pvt(xmpp_pvt_t *tech_pvt)
 {
-	switch_thread_rwlock_wrlock(gmeet_globals.tech_rwlock);
-	tech_pvt->next = gmeet_globals.tech_head;
-	gmeet_globals.tech_head = tech_pvt;
+	switch_thread_rwlock_wrlock(xmpp_globals.tech_rwlock);
+	tech_pvt->next = xmpp_globals.tech_head;
+	xmpp_globals.tech_head = tech_pvt;
 	switch_set_flag(tech_pvt, TFLAG_TRACKED);
-	switch_thread_rwlock_unlock(gmeet_globals.tech_rwlock);
+	switch_thread_rwlock_unlock(xmpp_globals.tech_rwlock);
 }
 
-static void untrack_pvt(gmeet_pvt_t *tech_pvt)
+static void untrack_pvt(xmpp_pvt_t *tech_pvt)
 {
-	gmeet_pvt_t *p, *last = NULL;
+	xmpp_pvt_t *p, *last = NULL;
 	int wake = 0;
 
-	switch_thread_rwlock_wrlock(gmeet_globals.tech_rwlock);
+	switch_thread_rwlock_wrlock(xmpp_globals.tech_rwlock);
 
 	if (tech_pvt->detach_time) {
-		gmeet_globals.detached--;
+		xmpp_globals.detached--;
 		tech_pvt->detach_time = 0;
 		wake = 1;
 	}
 
 	if (switch_test_flag(tech_pvt, TFLAG_TRACKED)) {
 		switch_clear_flag(tech_pvt, TFLAG_TRACKED);
-		for (p = gmeet_globals.tech_head; p; p = p->next) {
+		for (p = xmpp_globals.tech_head; p; p = p->next) {
 			if (p == tech_pvt) {
 				if (last) {
 					last->next = p->next;
 				} else {
-					gmeet_globals.tech_head = p->next;
+					xmpp_globals.tech_head = p->next;
 				}
 				break;
 			}
@@ -511,25 +511,25 @@ static void untrack_pvt(gmeet_pvt_t *tech_pvt)
 		}
 	}
 
-	switch_thread_rwlock_unlock(gmeet_globals.tech_rwlock);
+	switch_thread_rwlock_unlock(xmpp_globals.tech_rwlock);
 
 	if (wake) attach_wake();
 }
 
-switch_endpoint_interface_t *gmeet_endpoint_interface = NULL;
+switch_endpoint_interface_t *xmpp_endpoint_interface = NULL;
 
-static switch_status_t gmeet_on_destroy(switch_core_session_t *session)
+static switch_status_t xmpp_on_destroy(switch_core_session_t *session)
 {
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 
 	switch_safe_free(tech_pvt->jsock);
 
 	return SWITCH_STATUS_SUCCESS;
 }
 
-static switch_status_t gmeet_on_hangup(switch_core_session_t *session)
+static switch_status_t xmpp_on_hangup(switch_core_session_t *session)
 {
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 
 	untrack_pvt(tech_pvt);
 
@@ -537,7 +537,7 @@ static switch_status_t gmeet_on_hangup(switch_core_session_t *session)
 	if (!tech_pvt->remote_hangup_cause) {
 		cJSON *params = NULL;
 		switch_call_cause_t cause = switch_channel_get_cause(tech_pvt->channel);
-		switch_channel_set_variable(tech_pvt->channel, "gmeet_hangup_disposition", "send_bye");
+		switch_channel_set_variable(tech_pvt->channel, "xmpp_hangup_disposition", "send_bye");
 		switch_channel_set_variable(tech_pvt->channel, "sip_hangup_disposition", "send_bye");
 
 		cJSON_AddItemToObject(params, "causeCode", cJSON_CreateNumber(cause));
@@ -548,12 +548,12 @@ static switch_status_t gmeet_on_hangup(switch_core_session_t *session)
 	return SWITCH_STATUS_SUCCESS;
 }
 
-static switch_status_t gmeet_set_media_options(gmeet_pvt_t *tech_pvt, gmeet_profile_t *profile);
+static switch_status_t xmpp_set_media_options(xmpp_pvt_t *tech_pvt, xmpp_profile_t *profile);
 
-static switch_status_t gmeet_connect(switch_core_session_t *session, const char *method)
+static switch_status_t xmpp_connect(switch_core_session_t *session, const char *method)
 {
 	switch_status_t status = SWITCH_STATUS_SUCCESS;
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 	jsock_t *jsock = tech_pvt->jsock;
 
 	cJSON *params = NULL;
@@ -585,7 +585,7 @@ static switch_status_t gmeet_connect(switch_core_session_t *session, const char 
 		switch_channel_set_variable(tech_pvt->channel, "media_webrtc", "true");
 		switch_core_session_set_ice(tech_pvt->session);
 
-		if (gmeet_set_media_options(tech_pvt, jsock->profile) != SWITCH_STATUS_SUCCESS) {
+		if (xmpp_set_media_options(tech_pvt, jsock->profile) != SWITCH_STATUS_SUCCESS) {
 			status = SWITCH_STATUS_FALSE;
 			switch_thread_rwlock_unlock(jsock->rwlock);
 			return status;
@@ -652,7 +652,7 @@ static switch_status_t gmeet_connect(switch_core_session_t *session, const char 
 			// HTTP 请求 Whip or  Whep
 			headers = switch_curl_slist_append(headers, "Content-Type: application/sdp");
 			response = switch_http_request(SWITCH_HTTP_CM_POST, tech_pvt->url, new_sdp, strlen(new_sdp), headers,
-										   mod_gmeet_globals.pool, curl_connect_timeout, curl_timeout);
+										   mod_xmpp_globals.pool, curl_connect_timeout, curl_timeout);
 			if (response) {
 				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "code=%ld\n", response->code);
 				if (response->body_buffer) {
@@ -660,7 +660,7 @@ static switch_status_t gmeet_connect(switch_core_session_t *session, const char 
 					switch_buffer_peek_zerocopy(response->body_buffer, &data);
 					switch_assert(data);
 					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "res=%s\n", (char *)data);
-					status = gmeet_answer(session, (const char *)data);
+					status = xmpp_answer(session, (const char *)data);
 					switch_buffer_destroy(&response->body_buffer);
 				}
 				if (response->headers) switch_curl_slist_free_all(response->headers);
@@ -684,7 +684,7 @@ static switch_status_t gmeet_connect(switch_core_session_t *session, const char 
 	return status;
 }
 
-switch_status_t gmeet_tech_media(gmeet_pvt_t *tech_pvt, const char *r_sdp, switch_sdp_type_t sdp_type)
+switch_status_t xmpp_tech_media(xmpp_pvt_t *tech_pvt, const char *r_sdp, switch_sdp_type_t sdp_type)
 {
 	uint8_t p = 0;
 
@@ -710,10 +710,10 @@ switch_status_t gmeet_tech_media(gmeet_pvt_t *tech_pvt, const char *r_sdp, switc
 	return SWITCH_STATUS_FALSE;
 }
 
-static switch_status_t gmeet_on_init(switch_core_session_t *session)
+static switch_status_t xmpp_on_init(switch_core_session_t *session)
 {
 	switch_status_t status = SWITCH_STATUS_SUCCESS;
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 
 	if (switch_channel_test_flag(tech_pvt->channel, CF_RECOVERING_BRIDGE) ||
 		switch_channel_test_flag(tech_pvt->channel, CF_RECOVERING)) {
@@ -722,7 +722,7 @@ static switch_status_t gmeet_on_init(switch_core_session_t *session)
 		switch_core_session_clear_crypto(session);
 
 		while (--tries > 0) {
-			status = gmeet_connect(session, "gmeet.attach");
+			status = xmpp_connect(session, "xmpp.attach");
 
 			if (status == SWITCH_STATUS_SUCCESS) {
 				switch_set_flag(tech_pvt, TFLAG_ATTACH_REQ);
@@ -757,7 +757,7 @@ static switch_status_t gmeet_on_init(switch_core_session_t *session)
 	}
 
 	if (switch_channel_direction(tech_pvt->channel) == SWITCH_CALL_DIRECTION_OUTBOUND) {
-		if ((status = gmeet_connect(tech_pvt->session, "gmeet.invite")) != SWITCH_STATUS_SUCCESS) {
+		if ((status = xmpp_connect(tech_pvt->session, "xmpp.invite")) != SWITCH_STATUS_SUCCESS) {
 			switch_channel_hangup(tech_pvt->channel, SWITCH_CAUSE_DESTINATION_OUT_OF_ORDER);
 		} else {
 			switch_channel_mark_ring_ready(tech_pvt->channel);
@@ -773,11 +773,11 @@ end:
 	return status;
 }
 
-static switch_state_handler_table_t gmeet_state_handlers = {
-	/*.on_init */ gmeet_on_init,
+static switch_state_handler_table_t xmpp_state_handlers = {
+	/*.on_init */ xmpp_on_init,
 	/*.on_routing */ NULL,
 	/*.on_execute */ NULL,
-	/*.on_hangup */ gmeet_on_hangup,
+	/*.on_hangup */ xmpp_on_hangup,
 	/*.on_exchange_media */ NULL,
 	/*.on_soft_execute */ NULL,
 	/*.on_consume_media */ NULL,
@@ -785,10 +785,10 @@ static switch_state_handler_table_t gmeet_state_handlers = {
 	/*.on_reset */ NULL,
 	/*.on_park */ NULL,
 	/*.on_reporting */ NULL,
-	/*.on_destroy */ gmeet_on_destroy,
+	/*.on_destroy */ xmpp_on_destroy,
 	SSH_FLAG_STICKY};
 
-static switch_status_t gmeet_set_media_options(gmeet_pvt_t *tech_pvt, gmeet_profile_t *profile)
+static switch_status_t xmpp_set_media_options(xmpp_pvt_t *tech_pvt, xmpp_profile_t *profile)
 {
 	uint32_t i;
 
@@ -848,15 +848,15 @@ static switch_status_t gmeet_set_media_options(gmeet_pvt_t *tech_pvt, gmeet_prof
 	return SWITCH_STATUS_SUCCESS;
 }
 
-static switch_status_t gmeet_media(switch_core_session_t *session)
+static switch_status_t xmpp_media(switch_core_session_t *session)
 {
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 	switch_status_t status = SWITCH_STATUS_SUCCESS;
 
 	switch_core_media_prepare_codecs(tech_pvt->session, SWITCH_TRUE);
 
 	if (tech_pvt->r_sdp) {
-		if (gmeet_tech_media(tech_pvt, tech_pvt->r_sdp, SDP_TYPE_REQUEST) != SWITCH_STATUS_SUCCESS) {
+		if (xmpp_tech_media(tech_pvt, tech_pvt->r_sdp, SDP_TYPE_REQUEST) != SWITCH_STATUS_SUCCESS) {
 			switch_channel_set_variable(tech_pvt->channel, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "CODEC NEGOTIATION ERROR");
 			return SWITCH_STATUS_FALSE;
 		}
@@ -883,11 +883,11 @@ static switch_status_t gmeet_media(switch_core_session_t *session)
 	return status;
 }
 
-static switch_status_t gmeet_send_media_indication(switch_core_session_t *session, const char *method)
+static switch_status_t xmpp_send_media_indication(switch_core_session_t *session, const char *method)
 {
-	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "gmeet_send_media_indication %s \n", method);
+	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "xmpp_send_media_indication %s \n", method);
 	switch_status_t status = SWITCH_STATUS_FALSE;
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 	const char *proxy_sdp = NULL;
 
 	if (switch_test_flag(tech_pvt, TFLAG_SENT_MEDIA)) {
@@ -901,7 +901,7 @@ static switch_status_t gmeet_send_media_indication(switch_core_session_t *sessio
 		}
 	}
 
-	if (status == SWITCH_STATUS_SUCCESS || (status = gmeet_media(session)) == SWITCH_STATUS_SUCCESS) {
+	if (status == SWITCH_STATUS_SUCCESS || (status = xmpp_media(session)) == SWITCH_STATUS_SUCCESS) {
 		cJSON *params = NULL;
 		cJSON *msg = jrpc_new_req(method, tech_pvt->call_id, &params);
 		if (!switch_test_flag(tech_pvt, TFLAG_SENT_MEDIA)) {
@@ -910,7 +910,7 @@ static switch_status_t gmeet_send_media_indication(switch_core_session_t *sessio
 
 		switch_set_flag(tech_pvt, TFLAG_SENT_MEDIA);
 
-		if (gmeet_publish_event(tech_pvt, &msg) != SWITCH_STATUS_SUCCESS) {
+		if (xmpp_publish_event(tech_pvt, &msg) != SWITCH_STATUS_SUCCESS) {
 			switch_channel_hangup(tech_pvt->channel, SWITCH_CAUSE_DESTINATION_OUT_OF_ORDER);
 		}
 	}
@@ -918,11 +918,11 @@ static switch_status_t gmeet_send_media_indication(switch_core_session_t *sessio
 	return status;
 }
 
-static switch_status_t gmeet_send_media_update(switch_core_session_t *session, const char *method)
+static switch_status_t xmpp_send_media_update(switch_core_session_t *session, const char *method)
 {
 	switch_status_t status = SWITCH_STATUS_FALSE;
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
-	if (switch_true(switch_channel_get_private(tech_pvt->channel, "_gmeet_updateMedia_"))) {
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	if (switch_true(switch_channel_get_private(tech_pvt->channel, "_xmpp_updateMedia_"))) {
 		cJSON *params = NULL;
 		cJSON *msg = jrpc_new_req(method, tech_pvt->call_id, &params);
 		switch_core_media_gen_local_sdp(session, SDP_TYPE_RESPONSE, NULL, 0, NULL, 0);
@@ -932,11 +932,11 @@ static switch_status_t gmeet_send_media_update(switch_core_session_t *session, c
 			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "updateMedia: Local SDP %s:\n%s\n",
 							  switch_channel_get_name(tech_pvt->channel), tech_pvt->mparams->local_sdp_str);
 		}
-		if (gmeet_publish_event(tech_pvt, &msg) != SWITCH_STATUS_SUCCESS) {
+		if (xmpp_publish_event(tech_pvt, &msg) != SWITCH_STATUS_SUCCESS) {
 			switch_channel_hangup(tech_pvt->channel, SWITCH_CAUSE_DESTINATION_OUT_OF_ORDER);
 		}
 	}
-	switch_channel_set_private(tech_pvt->channel, "_gmeet_updateMedia_", NULL);
+	switch_channel_set_private(tech_pvt->channel, "_xmpp_updateMedia_", NULL);
 
 	return status;
 }
@@ -944,7 +944,7 @@ static switch_status_t gmeet_send_media_update(switch_core_session_t *session, c
 static switch_status_t messagehook(switch_core_session_t *session, switch_core_session_message_t *msg)
 {
 	switch_status_t r = SWITCH_STATUS_SUCCESS;
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, " ------------------------------- %d ------------\n",
 					  msg->message_id );
 	switch (msg->message_id) {
@@ -985,16 +985,16 @@ static switch_status_t messagehook(switch_core_session_t *session, switch_core_s
 			}
 		} break;
 		case SWITCH_MESSAGE_INDICATE_ANSWER:
-			r = gmeet_send_media_indication(session, "gmeet.answer");
+			r = xmpp_send_media_indication(session, "xmpp.answer");
 			break;
 		case SWITCH_MESSAGE_INDICATE_BRIDGE:
-			r = gmeet_send_media_indication(session, "gmeet.bridge");
+			r = xmpp_send_media_indication(session, "xmpp.bridge");
 			break;
 		case SWITCH_MESSAGE_INDICATE_PROGRESS:
-			r = gmeet_send_media_indication(session, "gmeet.media");
+			r = xmpp_send_media_indication(session, "xmpp.media");
 			break;
 		case SWITCH_MESSAGE_INDICATE_RESPOND:
-			r = gmeet_send_media_update(session, "gmeet.modify");
+			r = xmpp_send_media_update(session, "xmpp.modify");
 			break;
 		case SWITCH_MESSAGE_INDICATE_HOLD: {
 			if (msg->numeric_arg) {
@@ -1036,7 +1036,7 @@ static switch_status_t messagehook(switch_core_session_t *session, switch_core_s
 	return r;
 }
 
-static void pass_sdp(gmeet_pvt_t *tech_pvt)
+static void pass_sdp(xmpp_pvt_t *tech_pvt)
 {
 	switch_core_session_t *other_session = NULL;
 	switch_channel_t *other_channel = NULL;
@@ -1054,13 +1054,13 @@ static void pass_sdp(gmeet_pvt_t *tech_pvt)
 //// METHODS
 
 #define switch_either(_A, _B) zstr(_A) ? _B : _A
-char *gmeet_version() { return ""; }
-switch_status_t gmeet_answer(switch_core_session_t *session, const char *sdp)
+char *xmpp_version() { return ""; }
+switch_status_t xmpp_answer(switch_core_session_t *session, const char *sdp)
 {
 	int err = 0;
 	switch_status_t status = SWITCH_STATUS_FALSE;
 	const char *callee_id_name = NULL, *callee_id_number = NULL;
-	gmeet_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
+	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 	switch_core_session_t *other_session = NULL;
 	jsock_t *jsock = tech_pvt->jsock;
 
@@ -1112,7 +1112,7 @@ switch_status_t gmeet_answer(switch_core_session_t *session, const char *sdp)
 	if (switch_channel_test_flag(tech_pvt->channel, CF_PROXY_MODE)) {
 		pass_sdp(tech_pvt);
 	} else {
-		if (gmeet_tech_media(tech_pvt, tech_pvt->r_sdp, SDP_TYPE_RESPONSE) != SWITCH_STATUS_SUCCESS) {
+		if (xmpp_tech_media(tech_pvt, tech_pvt->r_sdp, SDP_TYPE_RESPONSE) != SWITCH_STATUS_SUCCESS) {
 			switch_channel_set_variable(tech_pvt->channel, SWITCH_ENDPOINT_DISPOSITION_VARIABLE, "CODEC NEGOTIATION ERROR");
 			err = 1;
 		}
@@ -1138,7 +1138,7 @@ switch_status_t gmeet_answer(switch_core_session_t *session, const char *sdp)
 	return status;
 }
 
-static void kill_profile(gmeet_profile_t *profile)
+static void kill_profile(xmpp_profile_t *profile)
 {
 	profile->running = 0;
 
@@ -1151,25 +1151,25 @@ static void kill_profile(gmeet_profile_t *profile)
 
 static void kill_profiles(void)
 {
-	gmeet_profile_t *pp;
+	xmpp_profile_t *pp;
 	int sanity = 50;
 
-	switch_mutex_lock(gmeet_globals.mutex);
-	for (pp = gmeet_globals.profile_head; pp; pp = pp->next) {
+	switch_mutex_lock(xmpp_globals.mutex);
+	for (pp = xmpp_globals.profile_head; pp; pp = pp->next) {
 		kill_profile(pp);
 	}
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_unlock(xmpp_globals.mutex);
 
-	while (--sanity > 0 && gmeet_globals.profile_threads > 0) {
+	while (--sanity > 0 && xmpp_globals.profile_threads > 0) {
 		switch_yield(100000);
 	}
 }
 
 static void do_shutdown(void)
 {
-	gmeet_globals.running = 0;
+	xmpp_globals.running = 0;
 
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Shutting down (SIG %d)\n", gmeet_globals.sig);
+	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Shutting down (SIG %d)\n", xmpp_globals.sig);
 
 	kill_profiles();
 
@@ -1205,11 +1205,11 @@ static void parse_ip(char *host, switch_size_t host_len, uint16_t *port, char *i
 	}
 }
 
-static gmeet_profile_t *find_profile(const char *name)
+static xmpp_profile_t *find_profile(const char *name)
 {
-	gmeet_profile_t *p, *r = NULL;
-	switch_mutex_lock(gmeet_globals.mutex);
-	for (p = gmeet_globals.profile_head; p; p = p->next) {
+	xmpp_profile_t *p, *r = NULL;
+	switch_mutex_lock(xmpp_globals.mutex);
+	for (p = xmpp_globals.profile_head; p; p = p->next) {
 		if (!strcmp(name, p->name)) {
 			r = p;
 			break;
@@ -1223,7 +1223,7 @@ static gmeet_profile_t *find_profile(const char *name)
 	if (r && switch_thread_rwlock_tryrdlock(r->rwlock) != SWITCH_STATUS_SUCCESS) {
 		r = NULL;
 	}
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_unlock(xmpp_globals.mutex);
 
 	return r;
 }
@@ -1231,58 +1231,58 @@ static gmeet_profile_t *find_profile(const char *name)
 static switch_bool_t profile_exists(const char *name)
 {
 	switch_bool_t r = SWITCH_FALSE;
-	gmeet_profile_t *p;
+	xmpp_profile_t *p;
 
-	switch_mutex_lock(gmeet_globals.mutex);
-	for (p = gmeet_globals.profile_head; p; p = p->next) {
+	switch_mutex_lock(xmpp_globals.mutex);
+	for (p = xmpp_globals.profile_head; p; p = p->next) {
 		if (!strcmp(p->name, name)) {
 			r = SWITCH_TRUE;
 			break;
 		}
 	}
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_unlock(xmpp_globals.mutex);
 
 	return r;
 }
 
-static void del_profile(gmeet_profile_t *profile)
+static void del_profile(xmpp_profile_t *profile)
 {
-	gmeet_profile_t *p, *last = NULL;
+	xmpp_profile_t *p, *last = NULL;
 
-	switch_mutex_lock(gmeet_globals.mutex);
-	for (p = gmeet_globals.profile_head; p; p = p->next) {
+	switch_mutex_lock(xmpp_globals.mutex);
+	for (p = xmpp_globals.profile_head; p; p = p->next) {
 		if (p == profile) {
 			if (last) {
 				last->next = p->next;
 			} else {
-				gmeet_globals.profile_head = p->next;
+				xmpp_globals.profile_head = p->next;
 			}
-			gmeet_globals.profile_count--;
+			xmpp_globals.profile_count--;
 			break;
 		}
 
 		last = p;
 	}
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_unlock(xmpp_globals.mutex);
 }
 
-static switch_status_t add_profile(gmeet_profile_t *profile)
+static switch_status_t add_profile(xmpp_profile_t *profile)
 {
 	switch_status_t status = SWITCH_STATUS_FALSE;
 
-	switch_mutex_lock(gmeet_globals.mutex);
+	switch_mutex_lock(xmpp_globals.mutex);
 
 	if (!profile_exists(profile->name)) {
 		status = SWITCH_STATUS_SUCCESS;
 	}
 
 	if (status == SWITCH_STATUS_SUCCESS) {
-		profile->next = gmeet_globals.profile_head;
-		gmeet_globals.profile_head = profile;
-		gmeet_globals.profile_count++;
+		profile->next = xmpp_globals.profile_head;
+		xmpp_globals.profile_head = profile;
+		xmpp_globals.profile_count++;
 	}
 
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_unlock(xmpp_globals.mutex);
 
 	return status;
 }
@@ -1299,7 +1299,7 @@ static switch_status_t parse_config(const char *cf)
 
 	if ((xprofiles = switch_xml_child(cfg, "profiles"))) {
 		for (xprofile = switch_xml_child(xprofiles, "profile"); xprofile; xprofile = xprofile->next) {
-			gmeet_profile_t *profile;
+			xmpp_profile_t *profile;
 			switch_memory_pool_t *pool;
 			const char *name = switch_xml_attr(xprofile, "name");
 
@@ -1427,9 +1427,9 @@ static switch_status_t parse_config(const char *cf)
 					if (!zstr(val)) {
 						profile->media_timeout = switch_core_strdup(profile->pool, val);
 					}
-				} else if (!strcasecmp(var, "gmeet-ctrl-subject")) {
+				} else if (!strcasecmp(var, "xmpp-ctrl-subject")) {
 					if (!zstr(val)) {
-						profile->gmeet_ctrl_subject = switch_core_strdup(profile->pool, val);
+						profile->xmpp_ctrl_subject = switch_core_strdup(profile->pool, val);
 					}
 				}
 			}
@@ -1472,14 +1472,14 @@ static switch_status_t parse_config(const char *cf)
 
 			if (!strcasecmp(var, "debug")) {
 				if (val) {
-					gmeet_globals.debug = atoi(val);
+					xmpp_globals.debug = atoi(val);
 				}
 			} else if (!strcasecmp(var, "enable-presence") && val) {
-				gmeet_globals.enable_presence = switch_true(val);
+				xmpp_globals.enable_presence = switch_true(val);
 			} else if (!strcasecmp(var, "detach-timeout-sec") && val) {
 				int tmp = atoi(val);
 				if (tmp > 0) {
-					gmeet_globals.detach_timeout = tmp;
+					xmpp_globals.detach_timeout = tmp;
 				}
 			}
 		}
@@ -1492,13 +1492,13 @@ static switch_status_t parse_config(const char *cf)
 
 static int init(void)
 {
-	parse_config("gmeet-rtc.conf");
-	gmeet_globals.running = 1;
+	parse_config("xmpp-rtc.conf");
+	xmpp_globals.running = 1;
 
 	return 0;
 }
 
-SWITCH_STANDARD_API(gmeet_function)
+SWITCH_STANDARD_API(xmpp_function)
 {
 	char *argv[1024] = {0};
 	int argc = 0;
@@ -1507,8 +1507,8 @@ SWITCH_STANDARD_API(gmeet_function)
 
 	static const char usage_string[] = "USAGE:\n"
 									   "--------------------------------------------------------------------------------\n"
-									   "gmeet [debug <on [1-10]|off>]\n"
-									   "gmeet help\n"
+									   "xmpp [debug <on [1-10]|off>]\n"
+									   "xmpp help\n"
 									   "--------------------------------------------------------------------------------\n";
 
 	if (zstr(cmd)) {
@@ -1530,10 +1530,10 @@ SWITCH_STANDARD_API(gmeet_function)
 		stream->write_function(stream, "%s", usage_string);
 		goto done;
 	} else if ((!strcasecmp(argv[0], "debug")) && (!argv[1])) {
-		stream->write_function(stream, "+OK debug %s\n", gmeet_globals.debug ? "on" : "off");
+		stream->write_function(stream, "+OK debug %s\n", xmpp_globals.debug ? "on" : "off");
 		goto done;
 	} else if ((!strcasecmp(argv[0], "debug")) && (!strcasecmp(argv[1], "off"))) {
-		gmeet_globals.debug = 0;
+		xmpp_globals.debug = 0;
 		stream->write_function(stream, "+OK debug off\n");
 		goto done;
 	} else if ((!strcasecmp(argv[0], "debug")) && (!strcasecmp(argv[1], "on"))) {
@@ -1545,7 +1545,7 @@ SWITCH_STANDARD_API(gmeet_function)
 			if (level > 10) level = 10;
 		}
 
-		gmeet_globals.debug = level;
+		xmpp_globals.debug = level;
 
 		if (level == 0) {
 			stream->write_function(stream, "+OK debug off\n");
@@ -1560,7 +1560,7 @@ done:
 	return status;
 }
 
-static void runtime(gmeet_profile_t *profile)
+static void runtime(xmpp_profile_t *profile)
 {
 	while (profile->running) {
 		switch_yield(3 * 1000 * 1000);
@@ -1569,12 +1569,12 @@ static void runtime(gmeet_profile_t *profile)
 
 static void *SWITCH_THREAD_FUNC profile_thread(switch_thread_t *thread, void *obj)
 {
-	gmeet_profile_t *profile = (gmeet_profile_t *)obj;
+	xmpp_profile_t *profile = (xmpp_profile_t *)obj;
 	int sanity = 50;
 
-	switch_mutex_lock(gmeet_globals.mutex);
-	gmeet_globals.profile_threads++;
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_lock(xmpp_globals.mutex);
+	xmpp_globals.profile_threads++;
+	switch_mutex_unlock(xmpp_globals.mutex);
 
 	profile->in_thread = 1;
 	profile->running = 1;
@@ -1596,14 +1596,14 @@ static void *SWITCH_THREAD_FUNC profile_thread(switch_thread_t *thread, void *ob
 	switch_thread_rwlock_unlock(profile->rwlock);
 	profile->in_thread = 0;
 
-	switch_mutex_lock(gmeet_globals.mutex);
-	gmeet_globals.profile_threads--;
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_lock(xmpp_globals.mutex);
+	xmpp_globals.profile_threads--;
+	switch_mutex_unlock(xmpp_globals.mutex);
 
 	return NULL;
 }
 
-static void run_profile_thread(gmeet_profile_t *profile)
+static void run_profile_thread(xmpp_profile_t *profile)
 {
 	switch_thread_data_t *td;
 
@@ -1619,25 +1619,25 @@ static void run_profile_thread(gmeet_profile_t *profile)
 
 static void run_profiles(void)
 {
-	gmeet_profile_t *p;
+	xmpp_profile_t *p;
 
-	switch_mutex_lock(gmeet_globals.mutex);
-	for (p = gmeet_globals.profile_head; p; p = p->next) {
+	switch_mutex_lock(xmpp_globals.mutex);
+	for (p = xmpp_globals.profile_head; p; p = p->next) {
 		if (!p->in_thread) {
 			run_profile_thread(p);
 		}
 	}
-	switch_mutex_unlock(gmeet_globals.mutex);
+	switch_mutex_unlock(xmpp_globals.mutex);
 }
 
-static switch_call_cause_t gmeet_outgoing_channel(switch_core_session_t *session, switch_event_t *var_event,
+static switch_call_cause_t xmpp_outgoing_channel(switch_core_session_t *session, switch_event_t *var_event,
 												  switch_caller_profile_t *outbound_profile,
 												  switch_core_session_t **new_session, switch_memory_pool_t **pool,
 												  switch_originate_flag_t flags, switch_call_cause_t *cancel_cause);
-switch_io_routines_t gmeet_io_routines = {
-	/*.outgoing_channel */ gmeet_outgoing_channel};
+switch_io_routines_t xmpp_io_routines = {
+	/*.outgoing_channel */ xmpp_outgoing_channel};
 
-static char *gmeet_get_dial_string(const char *uid, switch_stream_handle_t *rstream)
+static char *xmpp_get_dial_string(const char *uid, switch_stream_handle_t *rstream)
 {
 	switch_stream_handle_t *use_stream = NULL, stream = {0};
 	char *gen_uid = NULL;
@@ -1673,18 +1673,18 @@ static char *gmeet_get_dial_string(const char *uid, switch_stream_handle_t *rstr
 	return use_stream->data;
 }
 
-SWITCH_STANDARD_API(gmeet_contact_function)
+SWITCH_STANDARD_API(xmpp_contact_function)
 {
 	char *uid = (char *)cmd;
 
 	if (!zstr(uid)) {
-		gmeet_get_dial_string(uid, stream);
+		xmpp_get_dial_string(uid, stream);
 	}
 
 	return SWITCH_STATUS_SUCCESS;
 }
 
-static switch_call_cause_t gmeet_outgoing_channel(switch_core_session_t *session, switch_event_t *var_event,
+static switch_call_cause_t xmpp_outgoing_channel(switch_core_session_t *session, switch_event_t *var_event,
 												  switch_caller_profile_t *outbound_profile,
 												  switch_core_session_t **new_session, switch_memory_pool_t **pool,
 												  switch_originate_flag_t flags, switch_call_cause_t *cancel_cause)
@@ -1744,9 +1744,9 @@ static switch_call_cause_t gmeet_outgoing_channel(switch_core_session_t *session
 
 	if (dialed_user) {
 		if (dialed_domain) {
-			switch_event_add_header(var_event, SWITCH_STACK_BOTTOM, "gmeet_orig_dest", "%s@%s", dialed_user, dialed_domain);
+			switch_event_add_header(var_event, SWITCH_STACK_BOTTOM, "xmpp_orig_dest", "%s@%s", dialed_user, dialed_domain);
 		} else {
-			switch_event_add_header_string(var_event, SWITCH_STACK_BOTTOM, "gmeet_orig_dest", dialed_user);
+			switch_event_add_header_string(var_event, SWITCH_STACK_BOTTOM, "xmpp_orig_dest", dialed_user);
 		}
 		if (zstr(switch_event_get_header(var_event, "origination_callee_id_number"))) {
 			switch_event_add_header_string(var_event, SWITCH_STACK_BOTTOM, "origination_callee_id_number", dialed_user);
@@ -1760,7 +1760,7 @@ static switch_call_cause_t gmeet_outgoing_channel(switch_core_session_t *session
 		switch_channel_t *channel = switch_core_session_get_channel(*new_session);
 
 		switch_caller_profile_t *caller_profile;
-		gmeet_pvt_t *tech_pvt = NULL;
+		xmpp_pvt_t *tech_pvt = NULL;
 		char name[512];
 
 		tech_pvt = switch_core_session_alloc(*new_session, sizeof(*tech_pvt));
@@ -1777,8 +1777,8 @@ static switch_call_cause_t gmeet_outgoing_channel(switch_core_session_t *session
 		}
 
 		// get ctrl_uuid from channel varialbe or profile conf
-		char *ctrl_uuid = switch_event_get_header(var_event, "gmeet_ctrl_uuid");
-		if (zstr(ctrl_uuid)) ctrl_uuid = tech_pvt->jsock->profile->gmeet_ctrl_subject;
+		char *ctrl_uuid = switch_event_get_header(var_event, "xmpp_ctrl_uuid");
+		if (zstr(ctrl_uuid)) ctrl_uuid = tech_pvt->jsock->profile->xmpp_ctrl_subject;
 		if (zstr(ctrl_uuid)) ctrl_uuid = "rtc";
 
 		// keep consistency with xnode_invite dont add prefix
@@ -1805,7 +1805,7 @@ static switch_call_cause_t gmeet_outgoing_channel(switch_core_session_t *session
 			tech_pvt->mparams = switch_core_media_get_mparams(tech_pvt->smh);
 		}
 
-		switch_snprintf(name, sizeof(name), "gmeet/%s", tech_pvt->destination_number);
+		switch_snprintf(name, sizeof(name), "xmpp/%s", tech_pvt->destination_number);
 		switch_channel_set_name(channel, name);
 		switch_channel_set_variable(channel, "jsock_uuid_str", tech_pvt->jsock->uuid_str);
 		switch_channel_set_variable(channel, "event_channel_cookie", tech_pvt->jsock->uuid_str);
@@ -1836,7 +1836,7 @@ static switch_call_cause_t gmeet_outgoing_channel(switch_core_session_t *session
 			switch_channel_set_variable(channel, "absolute_codec_string", "OPUS,H264");
 		}
 
-		switch_channel_add_state_handler(channel, &gmeet_state_handlers);
+		switch_channel_add_state_handler(channel, &xmpp_state_handlers);
 		switch_core_event_hook_add_receive_message(*new_session, messagehook);
 		switch_channel_set_state(channel, CS_INIT);
 	}
@@ -1844,7 +1844,7 @@ static switch_call_cause_t gmeet_outgoing_channel(switch_core_session_t *session
 end:
 
 	if (cause != SWITCH_CAUSE_SUCCESS) {
-		UNPROTECT_INTERFACE(gmeet_endpoint_interface);
+		UNPROTECT_INTERFACE(xmpp_endpoint_interface);
 		if (session) {
 			switch_core_session_destroy(&session);
 		}
@@ -1861,50 +1861,50 @@ end:
 		cJSON_AddItemToObject(data, _name, cJSON_CreateString(tmp)); \
 	}
 
-switch_status_t gmeet_load SWITCH_MODULE_LOAD_ARGS
+switch_status_t xmpp_load SWITCH_MODULE_LOAD_ARGS
 {
 	switch_api_interface_t *api_interface = NULL;
 	switch_chat_interface_t *chat_interface = NULL;
 	int r;
 
-	memset(&gmeet_globals, 0, sizeof(gmeet_globals));
-	gmeet_globals.pool = pool;
+	memset(&xmpp_globals, 0, sizeof(xmpp_globals));
+	xmpp_globals.pool = pool;
 #ifndef WIN32
-	gmeet_globals.ready = SIGUSR1;
+	xmpp_globals.ready = SIGUSR1;
 #endif
-	gmeet_globals.enable_presence = SWITCH_TRUE;
+	xmpp_globals.enable_presence = SWITCH_TRUE;
 
-	switch_mutex_init(&gmeet_globals.mutex, SWITCH_MUTEX_NESTED, gmeet_globals.pool);
-	switch_thread_rwlock_create(&gmeet_globals.event_channel_rwlock, gmeet_globals.pool);
-	switch_core_hash_init(&gmeet_globals.event_channel_hash);
-	switch_thread_rwlock_create(&gmeet_globals.tech_rwlock, gmeet_globals.pool);
-	switch_mutex_init(&gmeet_globals.detach_mutex, SWITCH_MUTEX_NESTED, gmeet_globals.pool);
-	switch_mutex_init(&gmeet_globals.detach2_mutex, SWITCH_MUTEX_NESTED, gmeet_globals.pool);
-	switch_thread_cond_create(&gmeet_globals.detach_cond, gmeet_globals.pool);
-	gmeet_globals.detach_timeout = 120;
+	switch_mutex_init(&xmpp_globals.mutex, SWITCH_MUTEX_NESTED, xmpp_globals.pool);
+	switch_thread_rwlock_create(&xmpp_globals.event_channel_rwlock, xmpp_globals.pool);
+	switch_core_hash_init(&xmpp_globals.event_channel_hash);
+	switch_thread_rwlock_create(&xmpp_globals.tech_rwlock, xmpp_globals.pool);
+	switch_mutex_init(&xmpp_globals.detach_mutex, SWITCH_MUTEX_NESTED, xmpp_globals.pool);
+	switch_mutex_init(&xmpp_globals.detach2_mutex, SWITCH_MUTEX_NESTED, xmpp_globals.pool);
+	switch_thread_cond_create(&xmpp_globals.detach_cond, xmpp_globals.pool);
+	xmpp_globals.detach_timeout = 120;
 
 	// 读取配置文件
 	r = init();
 
 	if (r) return SWITCH_STATUS_TERM;
 
-	// 命令行输入 gmeet 入口
-	SWITCH_ADD_API(api_interface, "gmeet", "Verto API", gmeet_function, "syntax");
+	// 命令行输入 xmpp 入口
+	SWITCH_ADD_API(api_interface, "xmpp", "Verto API", xmpp_function, "syntax");
 
-	// 命令行输入 gmeet_contact 入口
-	SWITCH_ADD_API(api_interface, "gmeet_contact", "Generate a gmeet endpoint dialstring", gmeet_contact_function,
+	// 命令行输入 xmpp_contact 入口
+	SWITCH_ADD_API(api_interface, "xmpp_contact", "Generate a xmpp endpoint dialstring", xmpp_contact_function,
 				   "user@domain");
 
 	// 命令行提示
-	switch_console_set_complete("add gmeet help");
-	switch_console_set_complete("add gmeet debug on");
-	switch_console_set_complete("add gmeet debug off");
+	switch_console_set_complete("add xmpp help");
+	switch_console_set_complete("add xmpp debug on");
+	switch_console_set_complete("add xmpp debug off");
 
-	// 注册 gmeet 处理 schema
-	gmeet_endpoint_interface =
+	// 注册 xmpp 处理 schema
+	xmpp_endpoint_interface =
 		(switch_endpoint_interface_t *)switch_loadable_module_create_interface(*module_interface, SWITCH_ENDPOINT_INTERFACE);
-	gmeet_endpoint_interface->interface_name = ENDPOINT_NAME;
-	gmeet_endpoint_interface->io_routines = &gmeet_io_routines;
+	xmpp_endpoint_interface->interface_name = ENDPOINT_NAME;
+	xmpp_endpoint_interface->io_routines = &xmpp_io_routines;
 
 	run_profiles();
 
@@ -1912,12 +1912,12 @@ switch_status_t gmeet_load SWITCH_MODULE_LOAD_ARGS
 	return SWITCH_STATUS_SUCCESS;
 }
 
-switch_status_t gmeet_shutdown SWITCH_MODULE_SHUTDOWN_ARGS
+switch_status_t xmpp_shutdown SWITCH_MODULE_SHUTDOWN_ARGS
 {
 	do_shutdown();
 	attach_wake();
 
-	switch_core_hash_destroy(&gmeet_globals.event_channel_hash);
+	switch_core_hash_destroy(&xmpp_globals.event_channel_hash);
 
 	return SWITCH_STATUS_SUCCESS;
 }

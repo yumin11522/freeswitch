@@ -10,7 +10,7 @@
 #include <vector>
 #include <functional>
 
-namespace gmeetclient {
+namespace xmppclient {
 
 constexpr char GMEET_DEFAULT_CONFERENCE_DOMAIN[] = "conference.gmeet.numax.tech";
 

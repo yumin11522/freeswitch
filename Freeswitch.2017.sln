@@ -556,7 +556,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_switch_ivr_originate",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_switch_core_codec", "tests\unit\test_switch_core_codec.2017.vcxproj", "{589A07E7-5DE5-49FD-A62C-27795B806AFB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mod_gmeet", "src\mod\endpoints\mod_gmeet\mod_gmeet.2017.vcxproj", "{A93989F3-D3B0-406F-B48D-20AF92C0BFC1}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mod_gmeet", "src\mod\endpoints\mod_gmeet\mod_xmpp.2017.vcxproj", "{A93989F3-D3B0-406F-B48D-20AF92C0BFC1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

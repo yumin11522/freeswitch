@@ -32,7 +32,7 @@ using namespace gloox;
 using namespace gloox::Jingle;
 using namespace std;
 
-namespace gmeetclient {
+namespace xmppclient {
 
 #define GET_ENUM_NAME(value) case value: return (#value)
 
