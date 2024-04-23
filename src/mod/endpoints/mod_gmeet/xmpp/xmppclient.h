@@ -23,19 +23,25 @@ class XmppClient : public std::enable_shared_from_this<XmppClient>
 
     const std::string &id() const;
 
-//    void addTrack(const xmppclient::Track &track);
-
     virtual bool doconnect();
 
-    virtual bool sendRtp(AVType type, const char *data, size_t size);
+    virtual bool disconnect();
+
+    void setAnswer(const std::string &answer);
+
+    std::string getAnswer() const;
+
+    std::string getOffer() const;
 
     std::string onSdpExchange(const std::string &offer);
+
     void onSourceChange(SourceEvent evt, AVType t, const std::vector<uint32_t> &ssrc_vec);
 
 private:
     std::string m_client_id;
     std::shared_ptr<xmppclient::XmppConnection> m_xmppclient;
-//    std::unique_ptr<xmppclient::RtcClient> m_client;
+	std::string m_offer;
+	std::string m_answer;
 };
 
 } // xmppclient

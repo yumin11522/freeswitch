@@ -99,6 +99,8 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_xmpp_load)
 
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "xmpp version: %s Started\n", xmpp_version());
 
+
+
 	/* indicate that the module should continue to be loaded */
 	return SWITCH_STATUS_SUCCESS;
 }

@@ -9,7 +9,8 @@
     conference 8888-nuas_gcas bgdial vlc/rtmp://10.8.106.111/proxy/numax
 
 ## 会议室画面推流至 GMU (webrtc whip)
-    conference 8888-nuas_gcas bgdial {video_use_audio_ice=true,rtp_payload_space=103,absolute_codec_string=PCMU\,H264,media_timeout=10000000,url=http://127.0.0.1:80/index/api/whip?app=live&stream=livestream}gmeet/auto_answer
+    conference 8888-nuas_gcas bgdial {ice-lite=true,video_use_audio_ice=true,rtp_use_video_pt=107,absolute_codec_string=PCMU\,H264,media_timeout=10000000,url=http://127.0.0.1:80/index/api/whip?app=live&stream=livestream}xmpp/auto_answer
+    conference 8888-nuas_gcas bgdial {ice-lite=true,video_use_audio_ice=true,rtp_use_video_pt=107,absolute_codec_string=PCMU\,H264,media_timeout=10000000,url=http://127.0.0.1:80/index/api/echo?app=live&stream=livestream}srs/auto_answer
 
 ## 会议室画面拉流 (webrtc whep)
     conference 8888-nuas_gcas bgdial {video_use_audio_ice=true,rtp_payload_space=103,absolute_codec_string=PCMU\,H264,media_timeout=10000000,url=http://127.0.0.1:80/index/api/whep?app=live&stream=test}gmeet/auto_answer

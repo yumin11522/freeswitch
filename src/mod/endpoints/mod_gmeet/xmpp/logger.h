@@ -82,7 +82,7 @@ using Logger = xmppclient::Log;
     { \
         if (xmppclient::Log::handler && xmppclient::Log::logLevel == xmppclient::Log::LLevel::LOG_DEBUG) \
         { \
-            int loggerWritten = std::snprintf(Log::buffer, Log::bufferSize, _GMTC_STR_DESC desc, _GMTC_ARG, ##__VA_ARGS__); \
+            int loggerWritten = std::snprintf(xmppclient::Log::buffer, xmppclient::Log::bufferSize, _GMTC_STR_DESC desc, _GMTC_ARG, ##__VA_ARGS__); \
             xmppclient::Log::handler->OnLog(xmppclient::Log::LLevel::LOG_DEBUG, xmppclient::Log::buffer, loggerWritten); \
         } \
     } \

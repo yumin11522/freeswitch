@@ -115,18 +115,26 @@ Tag *TransportExt::tag() const {
 
     CandidateList::const_iterator it = m_candidates.begin();
     for (; it != m_candidates.end(); ++it) {
+        // a=candidate <foundation> <component-id> <transport> <priority> <connection-address> typ <candidate-types> <rel-addr> <rel-port>
         Tag *c = new Tag(t, "candidate");
         c->addAttribute("component", (*it).component);
         c->addAttribute("foundation", (*it).foundation);
-        c->addAttribute("generation", (*it).generation);
+		/*if ((*it).generation != "0") {
+            c->addAttribute("generation", (*it).generation);
+		
+        }*/
         c->addAttribute("id", (*it).id);
         c->addAttribute("ip", (*it).ip);
         c->addAttribute("network", (*it).network);
         c->addAttribute("port", (*it).port);
         c->addAttribute("priority", (*it).priority);
         c->addAttribute("protocol", (*it).protocol);
-        c->addAttribute("rel-addr", (*it).rel_addr);
-        c->addAttribute("rel-port", (*it).rel_port);
+		if (!(*it).rel_addr.empty()) {
+			c->addAttribute("rel-addr", (*it).rel_addr);
+		}
+		if ((*it).rel_port > 0) {
+			c->addAttribute("rel-port", (*it).rel_port);
+		}
         c->addAttribute("type", util::lookup((*it).type, typeValues));
     }
 

@@ -36,8 +36,8 @@ struct Candidate {
     int port;                 /**< The port at the candidate IP address. */
     int priority;             /**< A Priority as defined in ICE-CORE. */
     std::string protocol;     /**< The protocol to be used. Should be @b udp. */
-    std::string rel_addr;     /**< A related address as defined in ICE-CORE. */
-    int rel_port;             /**< A related port as defined in ICE-CORE. */
+	std::string rel_addr{""}; /**< A related address as defined in ICE-CORE. */
+	int rel_port{-1};			  /**< A related port as defined in ICE-CORE. */
     Type type;                /**< A Candidate Type as defined in ICE-CORE. */
 };
 

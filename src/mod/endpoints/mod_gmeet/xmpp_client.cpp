@@ -3,13 +3,18 @@
 //
 #define GMTC_CLASS ""
 
+#include "xmpp_client.h"
+
+#include <switch.h>
+
 #include <algorithm>
-#include <mutex>
 #include <cstddef>
+#include <mutex>
+#include <thread>
 #include <vector>
 
+#include "xmpp/logger.h"
 #include "xmpp/xmppclientmgr.h"
-#include "xmpp_client.h"
 
 int copyAndReturn(std::string s, char *buffer, int size)
 {
@@ -44,11 +49,36 @@ template <typename T> int copyAndReturn(std::vector<T> b, T *buffer, int size)
 
 void printVersion() {}
 
-xmpp_client_t *join_room(char *room_id, char *room_secret)
+class SwitchLogHandler : public xmppclient::Log::LogHandlerInterface
 {
+	void OnLog(xmppclient::Log::LLevel level, char *payload, size_t len)
+	{
+		switch (level) {
+			case xmppclient::Log::LLevel::LOG_ERROR:
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "%s \n", payload);
+				break;
+			case xmppclient::Log::LLevel::LOG_WARN:
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "%s \n", payload);
+				break;
+			case xmppclient::Log::LLevel::LOG_DEBUG:
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "%s \n", payload);
+				break;
+			case xmppclient::Log::LLevel::LOG_TRACE:
+				switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "%s \n", payload);
+				break;
+		}
+	}
+};
+
+void xmpp_init() {
 	xmppclient::XmppClientMgr::setXmppSrvHost("10.8.106.128");
 	xmppclient::XmppClientMgr::setXmppSrvPort(6222);
-	//	xmppclient::Logger::SetLogLevel(xmppclient::Logger::LogLevel::LOG_DEBUG);
+	xmppclient::Log::SetLogLevel(xmppclient::Log::LLevel::LOG_DEBUG);
+	xmppclient::Log::SetHandler(new SwitchLogHandler);
+}
+
+xmpp_client_t *join_room(char *room_id, char *room_secret)
+{
 	return (xmpp_client_t *)xmppclient::XmppClientMgr::Instance().addClient(room_id, room_secret).get();
 }
 
@@ -61,14 +91,26 @@ int doconnect(xmpp_client_t *client)
 	return c->doconnect();
 }
 
-int exchange_sdp(xmpp_client_t *client, const char *sdp, char *answer, int size)
+int get_xmpp_offer(xmpp_client_t *client, char *answer, int size)
 {
 	auto c = (xmppclient::XmppClient *)client;
 	if (!c) {
-		return false;
+		return GMT_ERR_INVALID;
 	}
-	return copyAndReturn(c->onSdpExchange(sdp), answer, size);
+	while (c->getOffer().empty()) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	}
+	return copyAndReturn(c->getOffer(), answer, size);
 }
+
+int set_switch_answer(xmpp_client_t* client, const char* answer) {
+	auto c = (xmppclient::XmppClient *)client;
+	if (!c) {
+		return GMT_ERR_INVALID;
+	}
+	c->setAnswer(answer);
+	return 0;
+};
 
 int leave_room(xmpp_client_t *client)
 {
@@ -76,5 +118,6 @@ int leave_room(xmpp_client_t *client)
 	if (!c) {
 		return GMT_ERR_INVALID;
 	}
+	c->disconnect();
 	return xmppclient::XmppClientMgr::Instance().removeClient(c->id());
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-set(PROJECT_NAME "mod_gmeet")
+set(PROJECT_NAME "mod_xmpp")
 project(${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 17)
 if (UNIX)
@@ -42,21 +42,20 @@ target_include_directories(sdptransform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ext/s
 #INCLUDE_DIRECTORIES(BEFORE ${CMAKE_SOURCE_DIR}/libs/apr-util/include ${CMAKE_SOURCE_DIR}/libs/apr-util/include/private  ${CMAKE_SOURCE_DIR}/libs/apr/include)
 
 SET (${PROJECT_NAME}_SRCS
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/sdputil.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/jinglebridgesession.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/jingledescription.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/jinglegroup.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/jingletransport.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/jinglepresence.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/xmppconnection.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/logger.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/gmeetclient.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet/gmeetclientmgr.cpp
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet_client.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/sdputil.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/jinglebridgesession.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/jingledescription.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/jinglegroup.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/jingletransport.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/jinglepresence.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/xmppconnection.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/logger.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/xmppclient.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp/xmppclientmgr.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp_client.cpp
 
-
-		${CMAKE_CURRENT_SOURCE_DIR}/mod_gmeet.c
-		${CMAKE_CURRENT_SOURCE_DIR}/gmeet_rtc.c
+		${CMAKE_CURRENT_SOURCE_DIR}/mod_xmpp.c
+		${CMAKE_CURRENT_SOURCE_DIR}/xmpp_rtc.c
 		${CMAKE_CURRENT_SOURCE_DIR}/version.c
 )
 

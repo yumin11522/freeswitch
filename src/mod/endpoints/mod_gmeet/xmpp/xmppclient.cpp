@@ -1,9 +1,13 @@
 //
 // Created by xiongqimin on 2023/12/14.
 //
+#define GMTC_CLASS "XmppClient"
 
 #include "xmppclient.h"
 
+#include <thread>
+
+#include "logger.h"
 #include "xmppclientmgr.h"
 
 using namespace std;
@@ -12,7 +16,6 @@ namespace xmppclient {
 XmppClient::XmppClient(const std::string &id, const std::string &room_id, const std::string &room_secret)
 	:
         m_client_id(id),
-//        m_client(make_unique<xmppclient::RtcClient>()),
 	  m_xmppclient(std::make_shared<xmppclient::XmppConnection>(XmppClientMgr::getXmppSrvHost(),
 																XmppClientMgr::getXmppSrvPort(), room_id,
                                                                    room_secret)) {
@@ -31,31 +34,36 @@ XmppClient::~XmppClient()
     }
 }
 
-bool XmppClient::sendRtp(AVType type, const char *data, size_t size)
-{
-	//    m_client->sendRtp(type, data, size);
-    return true;
-}
-
 void XmppClient::onSourceChange(SourceEvent evt, AVType t, const std::vector<uint32_t> &ssrc_vec)
 {
     for (auto ssrc: ssrc_vec) {
 //        m_client->addSsrc(t, ssrc);
+		GMTC_DEBUG("---------------------------------------------------- %d", ssrc);
     }
 }
 
+void XmppClient::setAnswer(const std::string& answer) { m_answer = answer; }
+
+std::string XmppClient::getAnswer() const { return m_answer; }
+
+std::string XmppClient::getOffer() const { return m_offer; }
+
 std::string XmppClient::onSdpExchange(const string &offer)
-{
-	//    m_client->setOfferSdp(offer);
-//    m_client->start();
-//    return m_client->answer();
-	return "";
+{ 
+    m_offer = offer;
+	while (m_answer.empty()) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+	return m_answer;
 }
+
+
 
 bool XmppClient::doconnect() {
     return m_xmppclient->connect();
 }
 
+bool XmppClient::disconnect() { return m_xmppclient->disconnect(); }
 //void xmppClient::addTrack(const Track &track) {
 //    if (m_client) {
 //        m_client->addTrack(track);

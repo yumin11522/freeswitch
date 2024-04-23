@@ -166,6 +166,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sound Files", "Sound Files", "{4F227C26-768F-46A3-8684-1D08A46FB374}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FreeSwitchConsole", "w32\Console\FreeSwitchConsole.2017.vcxproj", "{1AF3A893-F7BE-43DD-B697-8AB2397C0D67}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A93989F3-D3B0-406F-B48D-20AF92C0BFC1} = {A93989F3-D3B0-406F-B48D-20AF92C0BFC1}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FreeSwitchCoreLib", "w32\Library\FreeSwitchCore.2017.vcxproj", "{202D7A4E-760D-4D0E-AFA1-D7459CED30FF}"
 EndProject
@@ -556,7 +559,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_switch_ivr_originate",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_switch_core_codec", "tests\unit\test_switch_core_codec.2017.vcxproj", "{589A07E7-5DE5-49FD-A62C-27795B806AFB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mod_gmeet", "src\mod\endpoints\mod_gmeet\mod_xmpp.2017.vcxproj", "{A93989F3-D3B0-406F-B48D-20AF92C0BFC1}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mod_xmpp", "src\mod\endpoints\mod_gmeet\mod_xmpp.2017.vcxproj", "{A93989F3-D3B0-406F-B48D-20AF92C0BFC1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

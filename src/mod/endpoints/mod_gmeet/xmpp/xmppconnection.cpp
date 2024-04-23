@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <random>
+#include <thread>
 #include "xmppconnection.h"
 
 #include "client.h"
@@ -115,18 +116,28 @@ public:
         room = make_unique<MUCRoom>(client.get(), room_jid, this, nullptr);
 //        room->setPassword(_room_secret);
 
-        if (client->connect(false)) {
-            ConnectionError ce = ConnNoError;
-            while (ce == ConnNoError) {
-                ce = client->recv();
-            }
-            GMTC_ERROR("Connection error: %d ", ce);
-        }
+        _recv_thread = new thread([this]() {
+			if (client->connect(false)) {
+				ConnectionError ce = ConnNoError;
+				while (!_stop && ce == ConnNoError) {
+					ce = client->recv();
+				}
+				GMTC_ERROR("Connection error: %d ", ce);
+			}    
+            });
+
+        
         return true;
     }
 
     bool disconnect() {
+		GMTC_DEBUG("Xmpp disconnected");
         room->leave();
+		_stop = true;
+		if (_recv_thread && _recv_thread->joinable()) {
+			_recv_thread->join();
+        }
+		
         client->disconnect();
         return true;
     }
@@ -205,16 +216,21 @@ public:
     void handleSessionAction(Jingle::Action action, Jingle::Session *session,
                              const Jingle::Session::Jingle *jingle) override {
         if (action == SessionInitiate) {
-            const std::string &offer = to_sdp_str(jingle);
-            if (_on_sdp_change) {
-                auto answer = _on_sdp_change(offer);
-                auto jingle_answer = to_jingle(answer);
-                GMTC_DEBUG("Offer: %s, answer: %s", offer.c_str(), answer.c_str());
-                session->sessionAccept(jingle_answer);
-                Presence p(Presence::PresenceType::Available, room_jid);
-                p.addExtension(new AudioVideoMutePresence(gloox::Jingle::Video, false));
-                p.addExtension(new AudioVideoMutePresence(gloox::Jingle::Audio, false));
-                client->send(p);
+			if (!_answered) {
+				_answered = true;
+                const std::string &offer = to_sdp_str(jingle);
+                if (_on_sdp_change) {
+                    auto answer = _on_sdp_change(offer);
+                    auto jingle_answer = to_jingle(answer);
+                    GMTC_DEBUG("Offer: %s, answer: %s", offer.c_str(), answer.c_str());
+                    session->sessionAccept(jingle_answer);
+                    Presence p(Presence::PresenceType::Available, room_jid);
+                    p.addExtension(new AudioVideoMutePresence(gloox::Jingle::Video, false));
+                    p.addExtension(new AudioVideoMutePresence(gloox::Jingle::Audio, false));
+                    client->send(p);
+                }
+			} else {
+				GMTC_WARN("Call is answerd, but new offer received");
             }
         } else if (action == SourceAdd) {
             for (auto p: jingle->plugins()) {
@@ -284,6 +300,9 @@ private:
 	std::unique_ptr <Jingle::SessionManager> session_mgr;
     XmppConnection::OnSdpExchange _on_sdp_change;
     XmppConnection::OnSourceChange _on_source_change;
+	bool _stop{false};
+	std::thread *_recv_thread;
+	bool _answered{false};
 };
 
 XmppConnection::XmppConnection(const std::string &ip, uint16_t port, const std::string &room_id,

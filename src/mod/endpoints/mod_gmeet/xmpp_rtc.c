@@ -3,6 +3,7 @@
 #include <switch_stun.h>
 
 #include "mod_xmpp.h"
+#include "xmpp_client.h"
 
 #define VERTO_CHAT_PROTO "xmpp"
 
@@ -91,6 +92,8 @@ typedef struct xmpp_pvt_s {
 	int got_bye;
 
 	char *url;
+
+	xmpp_client_t *client;
 } xmpp_pvt_t;
 
 struct xmpp_profile_s {
@@ -532,6 +535,7 @@ static switch_status_t xmpp_on_hangup(switch_core_session_t *session)
 	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
 
 	untrack_pvt(tech_pvt);
+	leave_room(tech_pvt->client);
 
 	// get the jsock and send hangup notice
 	if (!tech_pvt->remote_hangup_cause) {
@@ -547,6 +551,7 @@ static switch_status_t xmpp_on_hangup(switch_core_session_t *session)
 
 	return SWITCH_STATUS_SUCCESS;
 }
+switch_status_t xmpp_tech_media(xmpp_pvt_t *tech_pvt, const char *r_sdp, switch_sdp_type_t sdp_type);
 
 static switch_status_t xmpp_set_media_options(xmpp_pvt_t *tech_pvt, xmpp_profile_t *profile);
 
@@ -650,9 +655,20 @@ static switch_status_t xmpp_connect(switch_core_session_t *session, const char *
 			}
 
 			// HTTP 请求 Whip or  Whep
-			headers = switch_curl_slist_append(headers, "Content-Type: application/sdp");
-			response = switch_http_request(SWITCH_HTTP_CM_POST, tech_pvt->url, new_sdp, strlen(new_sdp), headers,
+			//headers = switch_curl_slist_append(headers, "Content-Type: application/sdp");
+			set_switch_answer(tech_pvt->client, new_sdp);
+			doconnect(tech_pvt->client);
+			char offer[1024 * 5];
+			memset(offer,0, 1024 * 5);
+			int offer_size = get_xmpp_offer(tech_pvt->client, offer, 1024 * 5);
+			if (offer_size > 0) {
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "res=%s\n", (char *)offer);
+				status = handle_xmpp_answer(session, (const char *)offer);
+			}
+
+			/*response = switch_http_request(SWITCH_HTTP_CM_POST, tech_pvt->url, new_sdp, strlen(new_sdp), headers,
 										   mod_xmpp_globals.pool, curl_connect_timeout, curl_timeout);
+
 			if (response) {
 				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "code=%ld\n", response->code);
 				if (response->body_buffer) {
@@ -660,14 +676,14 @@ static switch_status_t xmpp_connect(switch_core_session_t *session, const char *
 					switch_buffer_peek_zerocopy(response->body_buffer, &data);
 					switch_assert(data);
 					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "res=%s\n", (char *)data);
-					status = xmpp_answer(session, (const char *)data);
+					status = handle_xmpp_answer(session, (const char *)data);
 					switch_buffer_destroy(&response->body_buffer);
 				}
 				if (response->headers) switch_curl_slist_free_all(response->headers);
 			} else {
 				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_WARNING, "NO Response\n");
 				status = SWITCH_STATUS_FALSE;
-			}
+			}*/
 		} else {
 			cJSON_AddItemToObject(params, "sdp", cJSON_CreateString(tech_pvt->mparams->local_sdp_str));
 			set_call_params(params, tech_pvt);
@@ -757,6 +773,7 @@ static switch_status_t xmpp_on_init(switch_core_session_t *session)
 	}
 
 	if (switch_channel_direction(tech_pvt->channel) == SWITCH_CALL_DIRECTION_OUTBOUND) {
+		tech_pvt->client = join_room("12345678", "");
 		if ((status = xmpp_connect(tech_pvt->session, "xmpp.invite")) != SWITCH_STATUS_SUCCESS) {
 			switch_channel_hangup(tech_pvt->channel, SWITCH_CAUSE_DESTINATION_OUT_OF_ORDER);
 		} else {
@@ -773,7 +790,7 @@ end:
 	return status;
 }
 
-static switch_state_handler_table_t xmpp_state_handlers = {
+static switch_state_handler_table_t switch_state_handler = {
 	/*.on_init */ xmpp_on_init,
 	/*.on_routing */ NULL,
 	/*.on_execute */ NULL,
@@ -941,12 +958,12 @@ static switch_status_t xmpp_send_media_update(switch_core_session_t *session, co
 	return status;
 }
 
-static switch_status_t messagehook(switch_core_session_t *session, switch_core_session_message_t *msg)
+static switch_status_t xmpp_message_hook(switch_core_session_t *session, switch_core_session_message_t *msg)
 {
 	switch_status_t r = SWITCH_STATUS_SUCCESS;
 	xmpp_pvt_t *tech_pvt = switch_core_session_get_private_class(session, SWITCH_PVT_SECONDARY);
-	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, " ------------------------------- %d ------------\n",
-					  msg->message_id );
+	//switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+	//				  " ------------------------------- %d ------------\n", msg->message_id);
 	switch (msg->message_id) {
 		case SWITCH_MESSAGE_INDICATE_DISPLAY: {
 			const char *name, *number;
@@ -1055,7 +1072,8 @@ static void pass_sdp(xmpp_pvt_t *tech_pvt)
 
 #define switch_either(_A, _B) zstr(_A) ? _B : _A
 char *xmpp_version() { return ""; }
-switch_status_t xmpp_answer(switch_core_session_t *session, const char *sdp)
+
+switch_status_t handle_xmpp_answer(switch_core_session_t *session, const char *sdp)
 {
 	int err = 0;
 	switch_status_t status = SWITCH_STATUS_FALSE;
@@ -1101,7 +1119,7 @@ switch_status_t xmpp_answer(switch_core_session_t *session, const char *sdp)
 					  switch_channel_get_name(tech_pvt->channel), sdp);
 	switch_core_media_set_sdp_codec_string(session, sdp, SDP_TYPE_RESPONSE);
 
-	switch_ivr_set_user(session, jsock->uid);
+	//switch_ivr_set_user(session, jsock->uid);
 
 	if (switch_core_session_get_partner(tech_pvt->session, &other_session) == SWITCH_STATUS_SUCCESS) {
 		switch_channel_t *other_channel = switch_core_session_get_channel(other_session);
@@ -1631,9 +1649,9 @@ static void run_profiles(void)
 }
 
 static switch_call_cause_t xmpp_outgoing_channel(switch_core_session_t *session, switch_event_t *var_event,
-												  switch_caller_profile_t *outbound_profile,
-												  switch_core_session_t **new_session, switch_memory_pool_t **pool,
-												  switch_originate_flag_t flags, switch_call_cause_t *cancel_cause);
+												 switch_caller_profile_t *outbound_profile, switch_core_session_t **new_session,
+												 switch_memory_pool_t **pool, switch_originate_flag_t flags,
+												 switch_call_cause_t *cancel_cause);
 switch_io_routines_t xmpp_io_routines = {
 	/*.outgoing_channel */ xmpp_outgoing_channel};
 
@@ -1685,18 +1703,20 @@ SWITCH_STANDARD_API(xmpp_contact_function)
 }
 
 static switch_call_cause_t xmpp_outgoing_channel(switch_core_session_t *session, switch_event_t *var_event,
-												  switch_caller_profile_t *outbound_profile,
-												  switch_core_session_t **new_session, switch_memory_pool_t **pool,
-												  switch_originate_flag_t flags, switch_call_cause_t *cancel_cause)
+												 switch_caller_profile_t *outbound_profile, switch_core_session_t **new_session,
+												 switch_memory_pool_t **pool, switch_originate_flag_t flags,
+												 switch_call_cause_t *cancel_cause)
 {
 	switch_call_cause_t cause = SWITCH_CAUSE_CHANNEL_UNACCEPTABLE;
-	char *dial_string = NULL;
+	char *dial_string = NULL;  // auto_answer
 	char *dest = NULL;
-	char *profile_name = NULL;
+	char *profile_name = NULL;	// default
 
+	// destination_number auto_answer
 	if (!zstr(outbound_profile->destination_number)) {
 		dial_string = strdup(outbound_profile->destination_number);
-		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Outbound destination number is: %s\n", outbound_profile->destination_number);
+		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Outbound destination number is: %s\n",
+						  outbound_profile->destination_number);
 	}
 
 	if (zstr(dial_string)) {
@@ -1739,7 +1759,9 @@ static switch_call_cause_t xmpp_outgoing_channel(switch_core_session_t *session,
 	const char *rtp_payload_space = switch_event_get_header(var_event, "rtp_payload_space");
 	const char *absolute_codec_string = switch_event_get_header(var_event, "absolute_codec_string");
 
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "dialed_user: %s\n dialed_domain: %s\n url: %s\n video_use_audio_ice: %s\n rtp_payload_space: %s\n absolute_codec_string: %s\n ",
+	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG,
+					  "dialed_user: %s\n dialed_domain: %s\n url: %s\n video_use_audio_ice: %s\n rtp_payload_space: %s\n "
+					  "absolute_codec_string: %s\n ",
 					  dialed_user, dialed_domain, url, video_use_audio_ice, rtp_payload_space, absolute_codec_string);
 
 	if (dialed_user) {
@@ -1836,8 +1858,8 @@ static switch_call_cause_t xmpp_outgoing_channel(switch_core_session_t *session,
 			switch_channel_set_variable(channel, "absolute_codec_string", "OPUS,H264");
 		}
 
-		switch_channel_add_state_handler(channel, &xmpp_state_handlers);
-		switch_core_event_hook_add_receive_message(*new_session, messagehook);
+		switch_channel_add_state_handler(channel, &switch_state_handler);
+		switch_core_event_hook_add_receive_message(*new_session, xmpp_message_hook);
 		switch_channel_set_state(channel, CS_INIT);
 	}
 
@@ -1889,11 +1911,10 @@ switch_status_t xmpp_load SWITCH_MODULE_LOAD_ARGS
 	if (r) return SWITCH_STATUS_TERM;
 
 	// 命令行输入 xmpp 入口
-	SWITCH_ADD_API(api_interface, "xmpp", "Verto API", xmpp_function, "syntax");
+	SWITCH_ADD_API(api_interface, "xmpp", "XMPP API", xmpp_function, "syntax");
 
 	// 命令行输入 xmpp_contact 入口
-	SWITCH_ADD_API(api_interface, "xmpp_contact", "Generate a xmpp endpoint dialstring", xmpp_contact_function,
-				   "user@domain");
+	SWITCH_ADD_API(api_interface, "xmpp_contact", "Generate a xmpp endpoint dialstring", xmpp_contact_function, "user@domain");
 
 	// 命令行提示
 	switch_console_set_complete("add xmpp help");
@@ -1907,6 +1928,8 @@ switch_status_t xmpp_load SWITCH_MODULE_LOAD_ARGS
 	xmpp_endpoint_interface->io_routines = &xmpp_io_routines;
 
 	run_profiles();
+
+	xmpp_init();
 
 	/* indicate that the module should continue to be loaded */
 	return SWITCH_STATUS_SUCCESS;

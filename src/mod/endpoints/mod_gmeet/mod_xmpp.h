@@ -48,8 +48,13 @@ extern mod_xmpp_globals_t mod_xmpp_globals;
 	} while (0)
 
 
-
-switch_status_t xmpp_answer(switch_core_session_t *session, const char *sdp);
+/**
+ * 处理 XMPP 响应的 SDP 内容
+ * @param session 
+ * @param sdp
+ * @return
+ */
+switch_status_t handle_xmpp_answer(switch_core_session_t *session, const char *sdp);
 
 #endif
 

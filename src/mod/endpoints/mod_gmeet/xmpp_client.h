@@ -43,6 +43,7 @@ typedef void xmpp_client_t;
 typedef void (*gmtcLogCallbackFunc)(int level, const char *message);
 
 void printVersion();
+void xmpp_init();
 
 /**
  * 加入 xmpp 会议
@@ -53,8 +54,12 @@ void printVersion();
 xmpp_client_t *join_room(char *room_id, char *room_secret);
 
 
-int connect(xmpp_client_t* client);
-int exchange_sdp(xmpp_client_t *client, const char *sdp, char *answer, int size);
+int doconnect(xmpp_client_t* client);
+
+int get_xmpp_offer(xmpp_client_t *client, char *answer, int size);
+
+int set_switch_answer(xmpp_client_t *client, const char *answer);
+
 int leave_room(xmpp_client_t* client);
 
 #ifdef __cplusplus
